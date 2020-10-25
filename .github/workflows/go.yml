@@ -66,9 +66,13 @@ jobs:
         uses: engineerd/setup-kind@v0.4.0
         with:
           version: "v0.8.1"
-      - name: Install skaffold
-        uses: hiberbee/github-action-skaffold@latest
+      - name: Install skaffold and helm
+        run: |
+          curl -Lo skaffold https://storage.googleapis.com/skaffold/releases/latest/skaffold-linux-amd64 && sudo install skaffold /usr/local/bin/
+          curl https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3 | bash
       - name: Setup Helm
         uses: hiberbee/github-action-helm@latest
+      - name: Check out code
+        uses: actions/checkout@v2
       - name: Run E2E Tests
         run: make kindE2E
