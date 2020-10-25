@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  creationTimestamp: null
+  labels:
+    run: demo
+  name: demo
+spec:
+  containers:
+    - image: mcr.microsoft.com/mcr/hello-world
+      name: demo
+      resources: {}
+  dnsPolicy: ClusterFirst
+  restartPolicy: Always
+  nodeName: vkubelet-browser
+status: {}
