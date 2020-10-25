@@ -5,6 +5,7 @@ binary := virtual-kubelet
 
 
 include Makefile.e2e
+include Makefile.dev
 
 all: test build
 
