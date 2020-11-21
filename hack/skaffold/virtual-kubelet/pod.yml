@@ -30,6 +30,8 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: status.podIP
+        - name: API_PORT
+          value: "8080"
       # ports:
       #   - name: metrics
       #     containerPort: 10255

@@ -23,18 +23,23 @@ type BrowserProvider struct {
 	daemonEndpointPort int32
 	operatingSystem    string
 	internalIP         string
+	apiPort            int
 
 	pods map[string]*v1.Pod
 }
 
 // NewBrowserProvider creates a new Browser Provider
-func NewBrowserProvider(config string, rm *manager.ResourceManager, nodeName, operatingSystem string, internalIP string, daemonEndpointPort int32, clusterDomain string) (*BrowserProvider, error) {
+func NewBrowserProvider(config string, rm *manager.ResourceManager, nodeName, operatingSystem string, internalIP string, daemonEndpointPort int32, clusterDomain string, apiPort int) (*BrowserProvider, error) {
+	ctx := context.Background()
 	p := BrowserProvider{}
 	p.pods = map[string]*v1.Pod{}
 	p.operatingSystem = operatingSystem
 	p.nodeName = nodeName
 	p.internalIP = internalIP
 	p.daemonEndpointPort = daemonEndpointPort
+	p.apiPort = apiPort
+
+	log.G(ctx).Infof("Starting node name %v serving the API on port %v", nodeName, apiPort)
 
 	return &p, nil
 }
