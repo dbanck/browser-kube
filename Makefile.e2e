@@ -23,20 +23,12 @@ skaffold/%:
 		-f $(PWD)/hack/skaffold/virtual-kubelet/skaffold.yml \
 		-p $(PROFILE)
 
-skaffold/run skaffold/dev: bin/e2e/virtual-kubelet
-
-bin/e2e:
-	@mkdir -p bin/e2e
-
-bin/e2e/virtual-kubelet: bin/e2e
-	GOOS=linux GOARCH=amd64 $(MAKE) OUTPUT_DIR=$(@D) build
-
 .PHONY: e2e
 e2e: KUBECONFIG ?= $(HOME)/.kube/config
 e2e: NAMESPACE := default
 e2e: NODE_NAME := vkubelet-browser
 e2e: export VK_BUILD_TAGS += browser_provider
-e2e: e2e.clean bin/e2e/virtual-kubelet skaffold/run
+e2e: e2e.clean skaffold/run
 	@echo Running tests...
 	cd $(PWD)/internal/test/e2e && go test -v -timeout 5m -tags e2e ./... \
 		-kubeconfig=$(KUBECONFIG) \
@@ -48,7 +40,6 @@ e2e: e2e.clean bin/e2e/virtual-kubelet skaffold/run
 e2e.clean: NODE_NAME ?= vkubelet-browser
 e2e.clean: skaffold/delete
 	kubectl delete --ignore-not-found node $(NODE_NAME); \
-	if [ -f bin/e2e/virtual-kubelet ]; then  rm bin/e2e/virtual-kubelet; fi
 
 .PHONY: kindE2E
 kindE2E: kubeconfig.yaml

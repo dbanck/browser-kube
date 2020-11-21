@@ -6,30 +6,41 @@ import (
 	"io"
 	"io/ioutil"
 	"strings"
-	"sync"
-	"time"
 
 	"github.com/virtual-kubelet/node-cli/manager"
 	"github.com/virtual-kubelet/virtual-kubelet/log"
 	"github.com/virtual-kubelet/virtual-kubelet/node/api"
 	"go.opencensus.io/trace"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	stats "k8s.io/kubernetes/pkg/kubelet/apis/stats/v1alpha1"
 )
 
 // BrowserProvider implements the virtual-kubelet provider interface
 type BrowserProvider struct {
-	nodeName string
+	nodeName           string
+	daemonEndpointPort int32
+	operatingSystem    string
+	internalIP         string
 
-	metricsSync     sync.Mutex
-	metricsSyncTime time.Time
-	lastMetric      *stats.Summary
+	pods map[string]*v1.Pod
 }
 
 // NewBrowserProvider creates a new Browser Provider
 func NewBrowserProvider(config string, rm *manager.ResourceManager, nodeName, operatingSystem string, internalIP string, daemonEndpointPort int32, clusterDomain string) (*BrowserProvider, error) {
-	p := BrowserProvider{nodeName: nodeName}
+	p := BrowserProvider{}
+	p.pods = map[string]*v1.Pod{}
+	p.operatingSystem = operatingSystem
+	p.nodeName = nodeName
+	p.internalIP = internalIP
+	p.daemonEndpointPort = daemonEndpointPort
+
 	return &p, nil
+}
+
+func getPodName(pod *v1.Pod) string {
+	return strings.Join([]string{pod.Namespace, pod.Name}, "/")
 }
 
 // CreatePod takes a Kubernetes Pod and deploys it within the provider.
@@ -37,6 +48,8 @@ func (p *BrowserProvider) CreatePod(ctx context.Context, pod *v1.Pod) error {
 	ctx, span := trace.StartSpan(ctx, "browser.CreatePod")
 	defer span.End()
 	log.G(ctx).Infof("Creating pod %v", pod.Name)
+
+	p.pods[getPodName(pod)] = pod
 
 	return nil
 }
@@ -82,10 +95,13 @@ func (p *BrowserProvider) GetPodStats(ctx context.Context, namespace, name strin
 func (p *BrowserProvider) GetPods(ctx context.Context) ([]*v1.Pod, error) {
 	ctx, span := trace.StartSpan(ctx, "browser.GetPods")
 	defer span.End()
-	log.G(ctx).Infof("Listing pods")
-	log.G(ctx).Errorf("TODO: implement listing pods")
+	log.G(ctx).Infof("Listing pods %+v", p.pods)
 
-	var pods []*v1.Pod
+	pods := []*v1.Pod{}
+	for _, pod := range p.pods {
+		pods = append(pods, pod)
+	}
+
 	return pods, nil
 }
 
@@ -94,6 +110,9 @@ func (p *BrowserProvider) UpdatePod(ctx context.Context, pod *v1.Pod) error {
 	ctx, span := trace.StartSpan(ctx, "browser.UpdatePod")
 	defer span.End()
 	log.G(ctx).Infof("Updating pod %v", pod.Name)
+
+	p.pods[getPodName(pod)] = pod
+
 	return nil
 }
 
@@ -103,8 +122,10 @@ func (p *BrowserProvider) UpdatePod(ctx context.Context, pod *v1.Pod) error {
 func (p *BrowserProvider) DeletePod(ctx context.Context, pod *v1.Pod) error {
 	ctx, span := trace.StartSpan(ctx, "browser.DeletePod")
 	defer span.End()
-
 	log.G(ctx).Infof("Deleting pod %v", pod.Name)
+
+	delete(p.pods, getPodName(pod))
+
 	return nil
 }
 
@@ -130,4 +151,68 @@ func (p *BrowserProvider) RunInContainer(ctx context.Context, namespace, name, c
 // will be used for Kubernetes.
 func (p *BrowserProvider) ConfigureNode(ctx context.Context, node *v1.Node) {
 	log.G(ctx).Infof("Configuring Node")
+
+	capacity := v1.ResourceList{
+		v1.ResourceCPU:    resource.MustParse("10000"),
+		v1.ResourceMemory: resource.MustParse("4Ti"),
+		v1.ResourcePods:   resource.MustParse("5000"),
+	}
+
+	node.Status.Capacity = capacity
+	node.Status.Allocatable = capacity
+	node.Status.Conditions = []v1.NodeCondition{
+		{
+			Type:               "Ready",
+			Status:             v1.ConditionTrue,
+			LastHeartbeatTime:  metav1.Now(),
+			LastTransitionTime: metav1.Now(),
+			Reason:             "KubeletReady",
+			Message:            "kubelet is ready.",
+		},
+		{
+			Type:               "OutOfDisk",
+			Status:             v1.ConditionFalse,
+			LastHeartbeatTime:  metav1.Now(),
+			LastTransitionTime: metav1.Now(),
+			Reason:             "KubeletHasSufficientDisk",
+			Message:            "kubelet has sufficient disk space available",
+		},
+		{
+			Type:               "MemoryPressure",
+			Status:             v1.ConditionFalse,
+			LastHeartbeatTime:  metav1.Now(),
+			LastTransitionTime: metav1.Now(),
+			Reason:             "KubeletHasSufficientMemory",
+			Message:            "kubelet has sufficient memory available",
+		},
+		{
+			Type:               "DiskPressure",
+			Status:             v1.ConditionFalse,
+			LastHeartbeatTime:  metav1.Now(),
+			LastTransitionTime: metav1.Now(),
+			Reason:             "KubeletHasNoDiskPressure",
+			Message:            "kubelet has no disk pressure",
+		},
+		{
+			Type:               "NetworkUnavailable",
+			Status:             v1.ConditionFalse,
+			LastHeartbeatTime:  metav1.Now(),
+			LastTransitionTime: metav1.Now(),
+			Reason:             "RouteCreated",
+			Message:            "RouteController created a route",
+		},
+	}
+	node.Status.Addresses = []v1.NodeAddress{
+		{
+			Type:    "InternalIP",
+			Address: p.internalIP,
+		},
+	}
+	node.Status.DaemonEndpoints = v1.NodeDaemonEndpoints{
+		KubeletEndpoint: v1.DaemonEndpoint{
+			Port: p.daemonEndpointPort,
+		},
+	}
+	node.Status.NodeInfo.OperatingSystem = p.operatingSystem
+	node.ObjectMeta.Labels["alpha.service-controller.kubernetes.io/exclude-balancer"] = "true"
 }
