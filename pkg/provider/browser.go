@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/gorilla/mux"
+	"github.com/gorilla/websocket"
 	"github.com/virtual-kubelet/node-cli/manager"
 	"github.com/virtual-kubelet/virtual-kubelet/log"
 	"github.com/virtual-kubelet/virtual-kubelet/node/api"
@@ -25,14 +26,20 @@ import (
 
 // BrowserProvider implements the virtual-kubelet provider interface
 type BrowserProvider struct {
+	// Node
 	nodeName           string
 	daemonEndpointPort int32
 	operatingSystem    string
 	internalIP         string
-	apiPort            int
-	apiServer          http.Server
 
-	pods map[string]*v1.Pod
+	// API
+	apiPort   int
+	apiServer http.Server
+	upgrader  websocket.Upgrader // Websocket upgrader
+
+	// State
+	pods     map[string]*v1.Pod
+	browsers map[*websocket.Conn]bool
 }
 
 // NewBrowserProvider creates a new Browser Provider
@@ -45,6 +52,13 @@ func NewBrowserProvider(config string, rm *manager.ResourceManager, nodeName, op
 	p.internalIP = internalIP
 	p.daemonEndpointPort = daemonEndpointPort
 	p.apiPort = apiPort
+	p.upgrader = websocket.Upgrader{
+		CheckOrigin: func(r *http.Request) bool {
+			return true
+		},
+	}
+	// TODO: replace bool with connection infos like running pods / last heartbeat / etc
+	p.browsers = make(map[*websocket.Conn]bool)
 
 	log.G(ctx).Infof("Starting node name %v serving the API on port %v", nodeName, apiPort)
 
@@ -65,11 +79,38 @@ func respondWithError(w http.ResponseWriter, code int, message string) {
 }
 
 func respondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
-	response, _ := json.Marshal(payload)
+	response, err := json.Marshal(payload)
+	if err != nil {
+		log.G(context.Background()).Errorf("Could not marshal payload")
+		return
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(code)
 	w.Write(response)
+}
+
+// this is a method to include client deletion right away
+func (provider *BrowserProvider) sendWebsocketMessage(client *websocket.Conn, payload interface{}) {
+	ctx := context.Background()
+	message, err := json.Marshal(payload)
+	if err != nil {
+		log.G(ctx).Errorf("Could not marshal websocket payload")
+		return
+	}
+
+	err = client.WriteMessage(websocket.TextMessage, message)
+	if err != nil {
+		log.G(ctx).Errorf("Websocket error %s", err)
+		client.Close()
+		delete(provider.browsers, client)
+	}
+}
+
+func (provider *BrowserProvider) broadcastWebsocketMessage(payload interface{}) {
+	for browser := range provider.browsers {
+		provider.sendWebsocketMessage(browser, payload)
+	}
 }
 
 func (provider *BrowserProvider) sendPods(w http.ResponseWriter, r *http.Request) {
@@ -81,7 +122,25 @@ func (provider *BrowserProvider) GetAPIRouter() *mux.Router {
 	r := mux.NewRouter()
 
 	r.HandleFunc("/pods", provider.sendPods).Methods("GET")
+	r.HandleFunc("/ws", provider.websocketHandler)
 	return r
+}
+
+func (provider *BrowserProvider) websocketHandler(w http.ResponseWriter, r *http.Request) {
+	ctx := context.Background()
+	ws, err := provider.upgrader.Upgrade(w, r, nil)
+
+	if err != nil {
+		log.G(ctx).Infof("Error upgrading websocket connection")
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	provider.browsers[ws] = true
+
+	for podName, pod := range provider.pods {
+		log.G(ctx).Debugf("Sending pod to new connection: %s", podName)
+		provider.sendWebsocketMessage(ws, pod)
+	}
 }
 
 func getPodName(pod *v1.Pod) string {
@@ -95,6 +154,7 @@ func (p *BrowserProvider) CreatePod(ctx context.Context, pod *v1.Pod) error {
 	log.G(ctx).Infof("Creating pod %v", pod.Name)
 
 	p.pods[getPodName(pod)] = pod
+	p.broadcastWebsocketMessage(pod)
 
 	return nil
 }
