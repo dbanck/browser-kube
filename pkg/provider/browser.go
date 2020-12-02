@@ -2,11 +2,17 @@ package provider
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"io/ioutil"
+	"net/http"
+	"os"
+	"os/signal"
 	"strings"
 
+	"github.com/gorilla/mux"
 	"github.com/virtual-kubelet/node-cli/manager"
 	"github.com/virtual-kubelet/virtual-kubelet/log"
 	"github.com/virtual-kubelet/virtual-kubelet/node/api"
@@ -24,6 +30,7 @@ type BrowserProvider struct {
 	operatingSystem    string
 	internalIP         string
 	apiPort            int
+	apiServer          http.Server
 
 	pods map[string]*v1.Pod
 }
@@ -41,7 +48,40 @@ func NewBrowserProvider(config string, rm *manager.ResourceManager, nodeName, op
 
 	log.G(ctx).Infof("Starting node name %v serving the API on port %v", nodeName, apiPort)
 
+	stop := make(chan os.Signal, 1)
+	signal.Notify(stop, os.Interrupt)
+	r := p.GetAPIRouter()
+	go func() {
+		if err := http.ListenAndServe(fmt.Sprintf(":%v", p.apiPort), r); err != nil {
+			log.G(ctx).Errorf("Error serving the api on port %v", apiPort)
+		}
+	}()
+
 	return &p, nil
+}
+
+func respondWithError(w http.ResponseWriter, code int, message string) {
+	respondWithJSON(w, code, map[string]string{"error": message})
+}
+
+func respondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
+	response, _ := json.Marshal(payload)
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(code)
+	w.Write(response)
+}
+
+func (provider *BrowserProvider) sendPods(w http.ResponseWriter, r *http.Request) {
+	respondWithJSON(w, http.StatusOK, provider.pods)
+}
+
+// GetAPIRouter exposes the api endpoint for the browser to comunicate with
+func (provider *BrowserProvider) GetAPIRouter() *mux.Router {
+	r := mux.NewRouter()
+
+	r.HandleFunc("/pods", provider.sendPods).Methods("GET")
+	return r
 }
 
 func getPodName(pod *v1.Pod) string {

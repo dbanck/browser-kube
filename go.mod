@@ -5,7 +5,9 @@ go 1.13
 require (
 	github.com/containerd/containerd v1.0.2
 	github.com/evanphx/json-patch v4.2.0+incompatible
+	github.com/gavv/httpexpect/v2 v2.1.0
 	github.com/gogo/googleapis v1.1.0 // indirect
+	github.com/gorilla/mux v1.8.0
 	github.com/hashicorp/errwrap v1.0.0 // indirect
 	github.com/lyft/protoc-gen-validate v0.0.13 // indirect
 	github.com/mattbaird/jsonpatch v0.0.0-20171005235357-81af80346b1a
@@ -14,6 +16,7 @@ require (
 	github.com/sirupsen/logrus v1.4.2
 	github.com/spf13/cobra v0.0.7
 	github.com/spf13/pflag v1.0.5
+	github.com/steinfletcher/apitest v1.4.16
 	github.com/virtual-kubelet/node-cli v0.3.1
 	github.com/virtual-kubelet/virtual-kubelet v1.3.0
 	go.opencensus.io v0.21.0

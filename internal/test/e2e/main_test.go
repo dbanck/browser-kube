@@ -72,8 +72,14 @@ func TestEndToEnd(t *testing.T) {
 		Teardown:       teardown,
 		ShouldSkipTest: shouldSkipTest,
 	}
+	fmt.Println("Starting virtual-kubelet E2E tests")
 	ts := vke2e.NewEndToEndTestSuite(config)
 	ts.Run(t)
+
+	// TODO: clean up pods / switch browser test to fresh namespace
+
+	fmt.Println("Starting API tests")
+	TestApi(t)
 }
 
 // setDefaults sets sane defaults in case no values (or empty ones) have been provided.

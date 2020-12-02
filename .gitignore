@@ -1,3 +1,5 @@
 bin
 kubeconfig.yaml
 kubeconfig-dev.yaml
+hack/.DS_Store
+kind-docker-config/
