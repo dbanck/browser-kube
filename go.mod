@@ -3,10 +3,13 @@ module github.com/dbanck/browser-kube
 go 1.13
 
 require (
+	github.com/docker/docker v0.7.3-0.20190327010347-be7ac8be2ae0
 	github.com/gavv/httpexpect/v2 v2.1.0
 	github.com/gorilla/mux v1.8.0
 	github.com/gorilla/websocket v1.4.0
+	github.com/pkg/errors v0.8.1
 	github.com/sirupsen/logrus v1.4.2
+	github.com/spf13/afero v1.4.1
 	github.com/stretchr/testify v1.6.1 // indirect
 	github.com/virtual-kubelet/node-cli v0.3.1
 	github.com/virtual-kubelet/virtual-kubelet v1.3.0

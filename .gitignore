@@ -3,3 +3,9 @@ kubeconfig.yaml
 kubeconfig-dev.yaml
 hack/.DS_Store
 kind-docker-config/
+target/
+static/wasm.js
+static/wasm.d.ts
+static/wasm_bg.wasm.d.ts
+static/package.json
+static/wasm_bg.wasm
