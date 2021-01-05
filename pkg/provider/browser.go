@@ -42,6 +42,12 @@ type BrowserProvider struct {
 	browsers map[*websocket.Conn]bool
 }
 
+// Message describes a websocket message
+type Message struct {
+	MessageType string      `json:"type"`
+	Data        interface{} `json:"data"`
+}
+
 // NewBrowserProvider creates a new Browser Provider
 func NewBrowserProvider(config string, rm *manager.ResourceManager, nodeName, operatingSystem string, internalIP string, daemonEndpointPort int32, clusterDomain string, apiPort int) (*BrowserProvider, error) {
 	ctx := context.Background()
@@ -91,60 +97,69 @@ func respondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
 }
 
 // this is a method to include client deletion right away
-func (provider *BrowserProvider) sendWebsocketMessage(client *websocket.Conn, payload interface{}) {
+func (p *BrowserProvider) sendWebsocketMessage(client *websocket.Conn, message *Message) {
 	ctx := context.Background()
-	message, err := json.Marshal(payload)
+	payload, err := json.Marshal(message)
 	if err != nil {
-		log.G(ctx).Errorf("Could not marshal websocket payload")
+		log.G(ctx).Errorf("Could not marshal websocket message")
 		return
 	}
 
-	err = client.WriteMessage(websocket.TextMessage, message)
+	err = client.WriteMessage(websocket.TextMessage, payload)
 	if err != nil {
 		log.G(ctx).Errorf("Websocket error %s", err)
 		client.Close()
-		delete(provider.browsers, client)
+		delete(p.browsers, client)
 	}
 }
 
-func (provider *BrowserProvider) broadcastWebsocketMessage(payload interface{}) {
-	for browser := range provider.browsers {
-		provider.sendWebsocketMessage(browser, payload)
+func (p *BrowserProvider) broadcastWebsocketMessage(message *Message) {
+	for browser := range p.browsers {
+		p.sendWebsocketMessage(browser, message)
 	}
 }
 
-func (provider *BrowserProvider) sendPods(w http.ResponseWriter, r *http.Request) {
-	respondWithJSON(w, http.StatusOK, provider.pods)
+func (p *BrowserProvider) sendPods(w http.ResponseWriter, r *http.Request) {
+	respondWithJSON(w, http.StatusOK, p.pods)
 }
 
 // GetAPIRouter exposes the api endpoint for the browser to comunicate with
-func (provider *BrowserProvider) GetAPIRouter() *mux.Router {
+func (p *BrowserProvider) GetAPIRouter() *mux.Router {
 	r := mux.NewRouter()
 
-	r.HandleFunc("/pods", provider.sendPods).Methods("GET")
-	r.HandleFunc("/ws", provider.websocketHandler)
+	r.HandleFunc("/pods", p.sendPods).Methods("GET")
+	r.HandleFunc("/ws", p.websocketHandler)
 	return r
 }
 
-func (provider *BrowserProvider) websocketHandler(w http.ResponseWriter, r *http.Request) {
+func (p *BrowserProvider) websocketHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := context.Background()
-	ws, err := provider.upgrader.Upgrade(w, r, nil)
+	ws, err := p.upgrader.Upgrade(w, r, nil)
 
 	if err != nil {
 		log.G(ctx).Infof("Error upgrading websocket connection")
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
-	provider.browsers[ws] = true
+	p.browsers[ws] = true
 
-	for podName, pod := range provider.pods {
-		log.G(ctx).Debugf("Sending pod to new connection: %s", podName)
-		provider.sendWebsocketMessage(ws, pod)
+	log.G(ctx).Debugf("Sending pods to new connection.")
+	pods := []*v1.Pod{}
+	for _, pod := range p.pods {
+		pods = append(pods, pod)
+	}
+
+	if len(pods) > 0 {
+		p.sendWebsocketMessage(ws, getSchedulePodMessage(&pods))
 	}
 }
 
 func getPodName(pod *v1.Pod) string {
 	return strings.Join([]string{pod.Namespace, pod.Name}, "/")
+}
+
+func getSchedulePodMessage(pods *[]*v1.Pod) *Message {
+	return &Message{MessageType: "schedulePods", Data: pods}
 }
 
 // CreatePod takes a Kubernetes Pod and deploys it within the provider.
@@ -154,7 +169,9 @@ func (p *BrowserProvider) CreatePod(ctx context.Context, pod *v1.Pod) error {
 	log.G(ctx).Infof("Creating pod %v", pod.Name)
 
 	p.pods[getPodName(pod)] = pod
-	p.broadcastWebsocketMessage(pod)
+
+	podArray := []*v1.Pod{pod}
+	p.broadcastWebsocketMessage(getSchedulePodMessage(&podArray))
 
 	return nil
 }
