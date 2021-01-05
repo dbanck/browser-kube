@@ -134,9 +134,8 @@ func TestPodsApi(t *testing.T) {
 			Websocket()
 		defer secondBrowser.Disconnect()
 
-		// Two pods in the ns, order can be random
-		secondBrowser.Expect().TextMessage().Body().Contains(ns)
-		secondBrowser.Expect().TextMessage().Body().Contains(ns)
+		// One message with both pods in it
+		secondBrowser.Expect().TextMessage().Body().Contains("my-test-pod").Contains("my-other-test-pod")
 
 		deletePod(ctx, ns, "my-test-pod")
 		deletePod(ctx, ns, "my-other-test-pod")
