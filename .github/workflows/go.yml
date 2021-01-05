@@ -71,7 +71,7 @@ jobs:
           curl -Lo skaffold https://storage.googleapis.com/skaffold/releases/latest/skaffold-linux-amd64 && sudo install skaffold /usr/local/bin/
           curl https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3 | bash
       - name: Setup Helm
-        uses: hiberbee/github-action-helm@latest
+        uses: azure/setup-helm@v1
       - name: Check out code
         uses: actions/checkout@v2
       - name: Run E2E Tests
