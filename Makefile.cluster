@@ -1,0 +1,18 @@
+CLUSTER_NAME="browser-kube"
+
+.PHONY: setup-dockerhub-secret
+setup-dockerhub-secret:
+	./hack/kind-docker-login.sh
+
+
+kubeconfig.yaml: setup-dockerhub-secret
+kubeconfig.yaml:
+	(kind get kubeconfig --name $(CLUSTER_NAME) || kind create cluster --name $(CLUSTER_NAME) --config ./hack/kind-config.yaml) && kind get kubeconfig --name $(CLUSTER_NAME) > kubeconfig.yaml
+	export KUBECONFIG=$(PWD)/kubeconfig.yaml
+	kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/master/deploy/static/provider/kind/deploy.yaml
+	sleep 5
+	kubectl wait --namespace ingress-nginx --for=condition=ready pod --selector=app.kubernetes.io/component=controller --timeout=180s
+
+clean-cluster:
+	kind delete cluster --name $(CLUSTER_NAME)
+	rm kubeconfig.yaml

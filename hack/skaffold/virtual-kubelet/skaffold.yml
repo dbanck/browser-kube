@@ -13,6 +13,8 @@ deploy:
     manifests:
       - hack/skaffold/virtual-kubelet/base.yml
       - hack/skaffold/virtual-kubelet/pod.yml
+      - hack/skaffold/virtual-kubelet/service.yml
+      - hack/skaffold/virtual-kubelet/ingress.yml
 profiles:
   - name: local
     build:

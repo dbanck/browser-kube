@@ -1,16 +1,12 @@
-CLUSTER_NAME="browser-kube" 
-
-kubeconfig-dev.yaml: kind
-	kind get kubeconfig --name $(CLUSTER_NAME) > kubeconfig-dev.yaml
-
 .PHONY: dev
-dev: kubeconfig-dev.yaml 
-dev: KUBECONFIG = $(PWD)/kubeconfig-dev.yaml
+dev: kubeconfig.yaml
+dev: KUBECONFIG = $(PWD)/kubeconfig.yaml
 dev: NAMESPACE := default
 dev: NODE_NAME := vkubelet-browser
 dev: PROFILE := local
 dev: export VK_BUILD_TAGS += browser_provider
 dev: dev.recreate skaffold/dev
+
 
 .PHONY: dev.recreate
 dev.recreate: skaffold/delete

@@ -3,23 +3,14 @@ module github.com/dbanck/browser-kube
 go 1.13
 
 require (
-	github.com/containerd/containerd v1.0.2
-	github.com/evanphx/json-patch v4.2.0+incompatible
-	github.com/gogo/googleapis v1.1.0 // indirect
-	github.com/hashicorp/errwrap v1.0.0 // indirect
-	github.com/lyft/protoc-gen-validate v0.0.13 // indirect
-	github.com/mattbaird/jsonpatch v0.0.0-20171005235357-81af80346b1a
-	github.com/patrickmn/go-cache v2.1.0+incompatible
-	github.com/pkg/errors v0.8.1
+	github.com/gavv/httpexpect/v2 v2.1.0
+	github.com/gorilla/mux v1.8.0
+	github.com/gorilla/websocket v1.4.0
 	github.com/sirupsen/logrus v1.4.2
-	github.com/spf13/cobra v0.0.7
-	github.com/spf13/pflag v1.0.5
+	github.com/stretchr/testify v1.6.1 // indirect
 	github.com/virtual-kubelet/node-cli v0.3.1
 	github.com/virtual-kubelet/virtual-kubelet v1.3.0
 	go.opencensus.io v0.21.0
-	golang.org/x/sync v0.0.0-20190911185100-cd5d95a43a6e
-	golang.org/x/time v0.0.0-20190308202827-9d24e82272b4
-	gopkg.in/inf.v0 v0.9.1 // indirect
 	k8s.io/api v0.18.4
 	k8s.io/apimachinery v0.19.3
 	k8s.io/client-go v0.18.4

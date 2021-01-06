@@ -3,7 +3,7 @@ VERSION=$(shell git describe --tags --abbrev=14 "${GIT_COMMIT}^{commit}" --alway
 BUILD_TIME=$(shell TZ=Asia/Shanghai date +%FT%T%z)
 binary := virtual-kubelet
 
-
+include Makefile.cluster
 include Makefile.e2e
 include Makefile.dev
 

@@ -9,11 +9,19 @@ ARG VERSION
 ARG BUILD_TIME
 RUN CGO_ENABLED=0 GOOS=linux go build -ldflags "-X 'main.buildVersion=${VERSION}' -X 'main.buildTime=${BUILD_TIME}'" -o /app/virtual-kubelet ./cmd/provider
 
-FROM gcr.io/distroless/base
+# For production
+# FROM gcr.io/distroless/base
+
+# For debugging
+FROM alpine 
 
 ENV APISERVER_CERT_LOCATION /vkubelet-browser-crt.pem
 ENV APISERVER_KEY_LOCATION /vkubelet-browser-key.pem
 ENV KUBELET_PORT 10250
+ENV API_PORT 80
+
+EXPOSE 10250
+EXPOSE 80
 
 # Copy the configuration file for the mock provider.
 COPY hack/skaffold/virtual-kubelet/vkubelet-browser-cfg.json /vkubelet-browser-cfg.json

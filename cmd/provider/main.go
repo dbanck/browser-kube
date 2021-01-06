@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
 
@@ -38,6 +39,11 @@ func main() {
 	log.L = logruslogger.FromLogrus(logrus.NewEntry(logger))
 	logConfig := &logruscli.Config{LogLevel: "info"}
 
+	apiPort, err := strconv.Atoi(os.Getenv("API_PORT"))
+	if err != nil {
+		log.G(ctx).Fatal(err)
+	}
+
 	trace.T = opencensus.Adapter{}
 
 	o, err := opts.FromEnv()
@@ -51,7 +57,7 @@ func main() {
 		cli.WithBaseOpts(o),
 		cli.WithCLIVersion(buildVersion, buildTime),
 		cli.WithProvider("browser", func(cfg provider.InitConfig) (provider.Provider, error) {
-			return browserProvider.NewBrowserProvider(cfg.ConfigPath, cfg.ResourceManager, cfg.NodeName, cfg.OperatingSystem, cfg.InternalIP, cfg.DaemonPort, cfg.KubeClusterDomain)
+			return browserProvider.NewBrowserProvider(cfg.ConfigPath, cfg.ResourceManager, cfg.NodeName, cfg.OperatingSystem, cfg.InternalIP, cfg.DaemonPort, cfg.KubeClusterDomain, apiPort)
 		}),
 		cli.WithPersistentFlags(logConfig.FlagSet()),
 		cli.WithPersistentPreRunCallback(func() error {

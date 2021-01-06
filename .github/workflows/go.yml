@@ -63,16 +63,20 @@ jobs:
       - name: Install docker
         uses: docker-practice/actions-setup-docker@master
       - name: Install kind
-        uses: engineerd/setup-kind@v0.4.0
+        uses: engineerd/setup-kind@v0.5.0
         with:
-          version: "v0.8.1"
+          version: "v0.9.0"
       - name: Install skaffold and helm
         run: |
           curl -Lo skaffold https://storage.googleapis.com/skaffold/releases/latest/skaffold-linux-amd64 && sudo install skaffold /usr/local/bin/
           curl https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3 | bash
       - name: Setup Helm
-        uses: hiberbee/github-action-helm@latest
+        uses: azure/setup-helm@v1
       - name: Check out code
         uses: actions/checkout@v2
       - name: Run E2E Tests
         run: make kindE2E
+        env:
+          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+          DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+
