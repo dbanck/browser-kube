@@ -10,16 +10,14 @@ import (
 )
 
 func TestLoad(t *testing.T) {
-	// appFS := afero.NewMemMapFs()
-	// basePath := "/images"
-	appFS := afero.NewOsFs()
-	basePath := "/Users/danielschmidt/Downloads/afero"
+	appFS := afero.NewMemMapFs()
+	basePath := "/images"
 	imageName := "danielmschmidt/hello-wasm:latest"
 
-	loader := NewDockerImageLoader(appFS, basePath, []string{"/main.wasm"})
+	loader := NewDockerImageLoader(appFS, basePath, []string{"/wasm_bg.wasm"})
 	bytes, err := loader.Load(context.Background(), imageName)
 	if err != nil {
-		t.Error(err.Error())
+		t.Fatal(err.Error())
 	}
 
 	// Test side-effects
@@ -30,7 +28,7 @@ func TestLoad(t *testing.T) {
 		t.Errorf("file \"%s\" does not exist.\n", expectManifest)
 	}
 
-	expectedContent := fmt.Sprintf("%s/content/%s/main.wasm", basePath, imageName)
+	expectedContent := fmt.Sprintf("%s/content/%s/wasm_bg.wasm", basePath, imageName)
 	_, err = appFS.Stat(expectedContent)
 
 	if os.IsNotExist(err) {

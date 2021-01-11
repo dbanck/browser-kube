@@ -5,8 +5,8 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
-	"os"
 	"path/filepath"
 
 	"github.com/docker/docker/api/types"
@@ -25,6 +25,11 @@ type Manifest struct {
 // From https://medium.com/@skdomino/taring-untaring-files-in-go-6b07cf56bc07
 func UnpackTar(fs *afero.Afero, dst string, r io.Reader) error {
 	tr := tar.NewReader(r)
+	err := fs.MkdirAll(dst, 0755)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("created %q \n", dst)
 
 	for {
 		header, err := tr.Next()
@@ -47,6 +52,8 @@ func UnpackTar(fs *afero.Afero, dst string, r io.Reader) error {
 		// the target location where the dir/file should be created
 		target := filepath.Join(dst, header.Name)
 
+		fmt.Printf("HeaderName: %q, target: %q \n", header.Name, target)
+
 		// check the file type
 		switch header.Typeflag {
 
@@ -60,19 +67,13 @@ func UnpackTar(fs *afero.Afero, dst string, r io.Reader) error {
 
 		// if it's a file create it
 		case tar.TypeReg:
-			f, err := fs.OpenFile(target, os.O_CREATE|os.O_RDWR, os.FileMode(header.Mode))
+			buf := new(bytes.Buffer)
+			buf.ReadFrom(tr)
+			fileContent := buf.Bytes()
+			err := fs.WriteFile(target, fileContent, 0644)
 			if err != nil {
 				return err
 			}
-
-			// copy over contents
-			if _, err := io.Copy(f, tr); err != nil {
-				return err
-			}
-
-			// manually close here after each file operation; defering would cause each file close
-			// to wait until all operations have completed.
-			f.Close()
 		}
 	}
 }
@@ -97,7 +98,7 @@ func NewDockerImageLoader(fs afero.Fs, basePath string, pathsInsideDockerImage [
 
 // Load loads an image resource to the file system
 // Inspired by https://www.madebymikal.com/quick-hack-extracting-the-contents-of-a-docker-image-to-disk/
-func (l *DockerImageLoader) Load(ctx context.Context, imageName string) ([]byte, error) {
+func (l *DockerImageLoader) Load(ctx context.Context, imageName string) ([][]byte, error) {
 	// Ensure base path exists
 	l.fs.MkdirAll(l.basePath, 0755)
 	l.fs.MkdirAll(filepath.Join(l.basePath, "save"), 0755)
@@ -108,8 +109,9 @@ func (l *DockerImageLoader) Load(ctx context.Context, imageName string) ([]byte,
 		return nil, errors.Wrap(err, "Could initialize docker cli")
 	}
 
+	// TODO: cli.ImagePull is not the same as docker pull, does not work if image was not previously pulled
 	// First we need to pull the image from the registry
-	_, err = cli.ImagePull(ctx, imageName, types.ImagePullOptions{})
+	_, err = cli.ImagePull(ctx, imageName, types.ImagePullOptions{All: true})
 	if err != nil {
 		return nil, errors.Wrap(err, "Could not load image")
 	}
@@ -122,6 +124,7 @@ func (l *DockerImageLoader) Load(ctx context.Context, imageName string) ([]byte,
 
 	// we extract the tar.gz file as seen in
 	imagePath := filepath.Join(l.basePath, "save", imageName)
+	fmt.Printf("Saving %q into %q \n", imageName, imagePath)
 	err = UnpackTar(l.fs, imagePath, reader)
 	if err != nil {
 		return nil, errors.Wrap(err, "Could not unpack image")
@@ -157,15 +160,21 @@ func (l *DockerImageLoader) Load(ctx context.Context, imageName string) ([]byte,
 		}
 	}
 
-	// construct tar layers using layer.tar of each layer mentioned in manifest.json (https://github.com/larsks/undocker/blob/master/undocker.py#L152)
-	// TODO: extract into fs, temporary folder
-	// TODO: copy over files requested
-	// TODO: cleanup temporary folder
+	// we read the requested files
+	files := [][]byte{}
+	for _, filePath := range l.pathsInsideDockerImage {
+		fileContent, err := l.fs.ReadFile(filepath.Join(contentPath, filePath))
+		if err != nil {
+			return nil, errors.Wrap(err, fmt.Sprintf("Could not find requested file: %q", filePath))
+		}
+		files = append(files, fileContent)
+	}
 
-	// we read the requested file
-	file := []byte{}
+	return files, nil
+}
 
-	// we save the requested file for caching
-
-	return file, nil
+// removeTmpFiles removes tmp files created by LOAD
+func (l *DockerImageLoader) removeTmpFiles(ctx context.Context, imageName string) error {
+	println("TODO: implement loader cleanup")
+	return nil
 }
