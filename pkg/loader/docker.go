@@ -29,7 +29,6 @@ func UnpackTar(fs *afero.Afero, dst string, r io.Reader) error {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("created %q \n", dst)
 
 	for {
 		header, err := tr.Next()
@@ -51,8 +50,6 @@ func UnpackTar(fs *afero.Afero, dst string, r io.Reader) error {
 
 		// the target location where the dir/file should be created
 		target := filepath.Join(dst, header.Name)
-
-		fmt.Printf("HeaderName: %q, target: %q \n", header.Name, target)
 
 		// check the file type
 		switch header.Typeflag {
@@ -124,7 +121,6 @@ func (l *DockerImageLoader) Load(ctx context.Context, imageName string) ([][]byt
 
 	// we extract the tar.gz file as seen in
 	imagePath := filepath.Join(l.basePath, "save", imageName)
-	fmt.Printf("Saving %q into %q \n", imageName, imagePath)
 	err = UnpackTar(l.fs, imagePath, reader)
 	if err != nil {
 		return nil, errors.Wrap(err, "Could not unpack image")
