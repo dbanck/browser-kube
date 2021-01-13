@@ -12,6 +12,9 @@ import (
 	"os/signal"
 	"strings"
 
+	"github.com/dbanck/browser-kube/pkg/loader"
+	"github.com/spf13/afero"
+
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
 	"github.com/virtual-kubelet/node-cli/manager"
@@ -40,6 +43,10 @@ type BrowserProvider struct {
 	// State
 	pods     map[string]*v1.Pod
 	browsers map[*websocket.Conn]bool
+
+	// Modules
+	dl    *loader.DockerImageLoader
+	files []string
 }
 
 // Message describes a websocket message
@@ -65,6 +72,9 @@ func NewBrowserProvider(config string, rm *manager.ResourceManager, nodeName, op
 	}
 	// TODO: replace bool with connection infos like running pods / last heartbeat / etc
 	p.browsers = make(map[*websocket.Conn]bool)
+	AppFs := afero.NewOsFs()
+	p.files = []string{"/index.js", "/wasm_bg.wasm"}
+	p.dl = loader.NewDockerImageLoader(AppFs, "/browser-kube/images", p.files)
 
 	log.G(ctx).Infof("Starting node name %v serving the API on port %v", nodeName, apiPort)
 
@@ -123,11 +133,56 @@ func (p *BrowserProvider) sendPods(w http.ResponseWriter, r *http.Request) {
 	respondWithJSON(w, http.StatusOK, p.pods)
 }
 
+func (p *BrowserProvider) getFilesForPod(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	podNamespace := vars["podNamespace"]
+	podName := vars["podName"]
+
+	if podName == "" {
+		respondWithJSON(w, http.StatusNotAcceptable, map[string]string{"error": "No pod specified"})
+		return
+	}
+
+	if podNamespace == "" {
+		respondWithJSON(w, http.StatusNotAcceptable, map[string]string{"error": "No namespace specified"})
+		return
+	}
+
+	podKey := strings.Join([]string{podNamespace, podName}, "/")
+	pod := p.pods[podKey]
+
+	if pod == nil {
+		respondWithJSON(w, http.StatusNotFound, map[string]string{"error": "Could not find pod"})
+		return
+	}
+
+	// TODO: support more than one images
+	imageName := pod.Spec.Containers[0].Image
+
+	fileContents, err := p.dl.Load(context.TODO(), imageName)
+
+	if err != nil {
+		fmt.Printf("Error loading pod images %v", err)
+		respondWithJSON(w, http.StatusOK, map[string]string{"error": err.Error()})
+		return
+	}
+
+	response := map[string]([]byte){}
+
+	for i, key := range p.files {
+		content := fileContents[i]
+		response[key] = content
+	}
+
+	respondWithJSON(w, http.StatusOK, response)
+}
+
 // GetAPIRouter exposes the api endpoint for the browser to comunicate with
 func (p *BrowserProvider) GetAPIRouter() *mux.Router {
 	r := mux.NewRouter()
 
 	r.HandleFunc("/pods", p.sendPods).Methods("GET")
+	r.HandleFunc("/pods/{podNamespace}/{podName}/files", p.getFilesForPod).Methods("GET")
 	r.HandleFunc("/ws", p.websocketHandler)
 	return r
 }
