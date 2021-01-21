@@ -27,6 +27,9 @@ import (
 	stats "k8s.io/kubernetes/pkg/kubelet/apis/stats/v1alpha1"
 )
 
+const dockerImageContentMount = "/browser-kube-images"
+const staticFilesMount = "/browser-kube-files"
+
 // BrowserProvider implements the virtual-kubelet provider interface
 type BrowserProvider struct {
 	// Node
@@ -73,8 +76,9 @@ func NewBrowserProvider(config string, rm *manager.ResourceManager, nodeName, op
 	// TODO: replace bool with connection infos like running pods / last heartbeat / etc
 	p.browsers = make(map[*websocket.Conn]bool)
 	AppFs := afero.NewOsFs()
-	p.files = []string{"/index.js", "/wasm_bg.wasm"}
-	p.dl = loader.NewDockerImageLoader(AppFs, "/browser-kube/images", p.files)
+	// TODO: these files should be derived by heuristic / label / annotation
+	p.files = []string{"/wasm.js", "/wasm_bg.wasm"}
+	p.dl = loader.NewDockerImageLoader(AppFs, dockerImageContentMount, p.files)
 
 	log.G(ctx).Infof("Starting node name %v serving the API on port %v", nodeName, apiPort)
 
@@ -184,6 +188,7 @@ func (p *BrowserProvider) GetAPIRouter() *mux.Router {
 	r.HandleFunc("/pods", p.sendPods).Methods("GET")
 	r.HandleFunc("/pods/{podNamespace}/{podName}/files", p.getFilesForPod).Methods("GET")
 	r.HandleFunc("/ws", p.websocketHandler)
+	r.PathPrefix("/").Handler(http.FileServer(http.Dir(staticFilesMount)))
 	return r
 }
 

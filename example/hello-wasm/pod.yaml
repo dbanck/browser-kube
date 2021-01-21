@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    run: hello-wasm
+  name: hello-wasm
+spec:
+  nodeName: vkubelet-browser
+  containers:
+    - image: danielmschmidt/hello-wasm:latest
+      name: hello-wasm

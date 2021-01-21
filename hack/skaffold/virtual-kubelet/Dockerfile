@@ -32,3 +32,4 @@ COPY hack/skaffold/virtual-kubelet/vkubelet-browser-key.pem /vkubelet-browser-ke
 
 CMD ["/virtual-kubelet"]
 COPY --from=builder /app .
+ADD frontend /browser-kube-files

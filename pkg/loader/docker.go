@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"path/filepath"
+	"strings"
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/client"
@@ -106,12 +107,18 @@ func (l *DockerImageLoader) Load(ctx context.Context, imageName string) ([][]byt
 		return nil, errors.Wrap(err, "Could initialize docker cli")
 	}
 
-	// TODO: cli.ImagePull is not the same as docker pull, does not work if image was not previously pulled
 	// First we need to pull the image from the registry
-	_, err = cli.ImagePull(ctx, imageName, types.ImagePullOptions{All: true})
+	responseBody, err := cli.ImagePull(ctx, imageName, types.ImagePullOptions{All: true})
 	if err != nil {
 		return nil, errors.Wrap(err, "Could not load image")
 	}
+	// We need to consume the reader for the reference to be there
+	buf := new(strings.Builder)
+	io.Copy(buf, responseBody)
+	fmt.Println("Loading docker image")
+	fmt.Println(buf.String())
+
+	responseBody.Close()
 
 	// Now that we have the image we need to use `docker save` to get it as a tar
 	reader, err := cli.ImageSave(ctx, []string{imageName})

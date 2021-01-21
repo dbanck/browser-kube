@@ -34,14 +34,35 @@ spec:
               fieldPath: status.podIP
         - name: API_PORT
           value: "80"
+        - name: DOCKER_HOST
+          value: tcp://localhost:2375
       ports:
         - name: api
           containerPort: 80
-      # ports:
-      #   - name: metrics
-      #     containerPort: 10255
       readinessProbe:
         httpGet:
           path: /pods
           port: api
+      volumeMounts:
+        - name: images
+          mountPath: /browser-kube-images
+    - name: docker-in-docker
+      image: docker:20.10.2-dind
+      args:
+        - --host=tcp://0.0.0.0:2375
+      securityContext:
+        privileged: true
+      volumeMounts:
+        - name: dind-storage
+          mountPath: /var/lib/docker
+      env:
+        - name: DOCKER_TLS_CERTDIR
+          value: ""
+      ports:
+        - containerPort: 2375
+  volumes:
+    - name: dind-storage
+      emptyDir: {}
+    - name: images
+      emptyDir: {}
   serviceAccountName: virtual-kubelet
